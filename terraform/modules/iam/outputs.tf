@@ -1,0 +1,1 @@
+output "cloud_build_sa" { value = var.cloud_build_sa }
