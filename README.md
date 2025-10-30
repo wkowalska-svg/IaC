@@ -90,8 +90,9 @@ Make sure you have a GCS bucket created and configured before running terraform 
 ## Usage
 1. Initialize Terraform
 ```
-terraform init
+terraform init -backend-config="bucket=state-bucket-name"
 ```
+- state-bucket-name → the name of the GCS bucket created via the bootstrap process.
 2.Review the execution plan
 ```
 terraform plan -var="project_id=your-gcp-project-id" -var="vm_user_email=you@example.com"
