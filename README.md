@@ -53,11 +53,12 @@ Deploys two Compute Engine instances (VMs) with Nginx pre-installed.
 | `vm_user_email` | string | — | User email for SSH access |
 
 **Default Subnets:**
-
+```
 subnets = {
   subnet-a = { cidr = "10.0.1.0/24", region = "us-central1" }
   subnet-b = { cidr = "10.0.2.0/24", region = "us-central1" }
 }
+```
 
 ## Outputs
 | Name | Description |
