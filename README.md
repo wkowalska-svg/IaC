@@ -11,6 +11,15 @@ scripts/bootstrap_all.sh <PROJECT_ID> [state-bucket-name] [region]
 - Grants necessary IAM roles to the Cloud Build service account.
 - Must be run in a GCP environment (e.g., Cloud Shell) before using the pipeline.
 
+Sometimes when you copy it from Windows to Linux this might be needed (fixes the line endings):
+```
+sed -i 's/\r$//' scripts/bootstrap_all.sh
+```
+Plus also setting rights:
+```
+chmod +x scripts/bootstrap_all.sh
+```
+
 # GCP Infrastructure with Terraform
 This Terraform configuration provisions a complete Google Cloud Platform (GCP) environment that includes networking, IAM permissions, and virtual machines (VMs).  
 
