@@ -1,0 +1,128 @@
+steps:
+  # Step 1: Terraform Format Check
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "fmt"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "************************************"
+        echo "* Checking Terraform formatting... *"
+        echo "************************************"
+        cd terraform
+        terraform fmt -check -recursive || {
+          echo "❌ Terraform files are not properly formatted!"
+          echo "Run 'terraform fmt -recursive' locally to fix."
+          exit 1
+        }
+        echo "✅ Terraform formatting is correct"
+
+  # Step 2: Terraform Init
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "init"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Initializing Terraform...     *"
+        echo "********************************"
+        cd terraform
+        terraform init -backend-config="bucket=${_STATE_BUCKET}" -no-color || {
+          echo "❌ Terraform initialization failed!"
+          echo "Please check the backend configuration and credentials."
+          exit 1
+        }
+        echo "✅ Terraform initialized successfully"
+
+  # Step 3: Terraform Validate
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "validate"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Validating Terraform config...  *"
+        echo "********************************"
+        cd terraform
+        terraform validate -no-color || {
+          echo "❌ Terraform validation failed!"
+          echo "Please check the errors above and fix the configuration issues."
+          exit 1
+        }
+        echo "✅ Terraform configuration is valid"
+
+  # Step 4: Terraform Plan
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "plan"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Running Terraform Plan...     *"
+        echo "********************************"
+        cd terraform
+
+        # Enable pipefail to catch errors in piped commands
+        set -o pipefail
+
+        terraform plan \
+          -var="project_id=${PROJECT_ID}" \
+          -var="vm_user_email=${_VM_USER_EMAIL}" \
+          -var="github_repo_url=${_GITHUB_REPO_URL}" \
+          -var="github_app_installation_id=${_GITHUB_APP_INSTALLATION_ID}" \
+          -var="state_bucket=${_STATE_BUCKET}" \
+          -var="cloud_build_sa=${_CLOUD_BUILD_SA}" \
+          -out=tfplan \
+          -no-color 2>&1 | tee /workspace/plan_output.txt || {
+          echo ""
+          echo "❌ Terraform plan failed!"
+          echo "Please review the errors above and fix the issues."
+          exit 1
+        }
+
+        echo ""
+        echo "✅ Terraform plan completed successfully"
+
+        # Check if plan has changes
+        if grep -q "No changes" /workspace/plan_output.txt; then
+          echo "✅ No infrastructure changes detected"
+        else
+          echo "📋 Infrastructure changes detected - review the plan above"
+        fi
+
+  # Step 5: Generate Plan Summary
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "show-plan"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Plan Summary                  *"
+        echo "********************************"
+        cd terraform
+        terraform show -no-color tfplan
+
+# Store plan output as build artifact
+artifacts:
+  objects:
+    location: "gs://${_STATE_BUCKET}/builds/${BUILD_ID}"
+    paths:
+      - "terraform/tfplan"
+      - "plan_output.txt"
+
+timeout: "1200s" # 20 minutes
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _TF_VERSION: "1.9.0"
+  _STATE_BUCKET: "MUST_BE_PROVIDED"
+  _VM_USER_EMAIL: "MUST_BE_PROVIDED"
+  _GITHUB_REPO_URL: "MUST_BE_PROVIDED"
+  _GITHUB_APP_INSTALLATION_ID: "MUST_BE_PROVIDED"
+  _CLOUD_BUILD_SA: "MUST_BE_PROVIDED"

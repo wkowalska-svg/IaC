@@ -1,0 +1,137 @@
+steps:
+  # Step 1: Terraform Init
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "init"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Initializing Terraform...     *"
+        echo "********************************"
+        cd terraform
+        terraform init -backend-config="bucket=${_STATE_BUCKET}" -no-color || {
+          echo "❌ Terraform initialization failed!"
+          echo "Please check the backend configuration and credentials."
+          exit 1
+        }
+        echo "✅ Terraform initialized successfully"
+
+  # Step 2: Terraform Plan
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "plan"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Running Terraform Plan...     *"
+        echo "********************************"
+        cd terraform
+
+        # Enable pipefail to catch errors in piped commands
+        set -o pipefail
+
+        terraform plan \
+          -var="project_id=${PROJECT_ID}" \
+          -var="vm_user_email=${_VM_USER_EMAIL}" \
+          -var="github_repo_url=${_GITHUB_REPO_URL}" \
+          -var="github_app_installation_id=${_GITHUB_APP_INSTALLATION_ID}" \
+          -var="state_bucket=${_STATE_BUCKET}" \
+          -var="cloud_build_sa=${_CLOUD_BUILD_SA}" \
+          -out=tfplan \
+          -no-color || {
+          echo "❌ Terraform plan failed!"
+          echo "Please review the errors above and fix the issues."
+          exit 1
+        }
+        echo "✅ Terraform plan completed successfully"
+
+  # Step 3: Terraform Apply
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "apply"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Applying Terraform changes... *"
+        echo "********************************"
+        cd terraform
+
+        # Enable pipefail to catch errors in piped commands
+        set -o pipefail
+
+        terraform apply -auto-approve -no-color tfplan 2>&1 | tee /workspace/apply_output.txt || {
+          echo ""
+          echo "❌ Terraform apply failed!"
+          echo "Please review the errors above. Infrastructure may be in a partial state."
+          exit 1
+        }
+
+        echo ""
+        echo "✅ Deployment completed successfully!"
+
+  # Step 4: Terraform Output
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "output"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Infrastructure Outputs        *"
+        echo "********************************"
+        cd terraform
+        terraform output -no-color || {
+          echo "❌ Failed to retrieve Terraform outputs!"
+          echo "The deployment may have succeeded but outputs could not be displayed."
+          exit 1
+        }
+        echo ""
+        echo "✅ Outputs retrieved successfully"
+
+  # Step 5: Save State Info
+  - name: "gcr.io/cloud-builders/gsutil"
+    id: "backup"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Backing up build artifacts... *"
+        echo "********************************"
+        echo "${SHORT_SHA}-${BUILD_ID}" > /workspace/deployment_info.txt
+
+        gsutil cp /workspace/apply_output.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-apply-${SHORT_SHA}.log || {
+          echo "❌ Failed to backup apply output!"
+          exit 1
+        }
+
+        gsutil cp /workspace/deployment_info.txt gs://${_STATE_BUCKET}/deployments/latest.txt || {
+          echo "❌ Failed to backup deployment info!"
+          exit 1
+        }
+
+        echo "✅ Build artifacts saved successfully"
+
+# Store outputs as build artifacts
+artifacts:
+  objects:
+    location: "gs://${_STATE_BUCKET}/builds/${BUILD_ID}"
+    paths:
+      - "apply_output.txt"
+      - "deployment_info.txt"
+
+timeout: "1800s" # 30 minutes
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _TF_VERSION: "1.9.0"
+  _STATE_BUCKET: "MUST_BE_PROVIDED"
+  _VM_USER_EMAIL: "MUST_BE_PROVIDED"
+  _GITHUB_REPO_URL: "MUST_BE_PROVIDED"
+  _GITHUB_APP_INSTALLATION_ID: "MUST_BE_PROVIDED"
+  _CLOUD_BUILD_SA: "MUST_BE_PROVIDED"

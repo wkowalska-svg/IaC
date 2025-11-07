@@ -1,0 +1,37 @@
+# Example Terraform variables file
+# Copy this file to terraform.tfvars and fill in your actual values
+# DO NOT commit terraform.tfvars to version control!
+
+# Required: Your GCP Project ID
+project_id = "project_id"
+
+# Required: Your email for VM SSH access
+vm_user_email = "your_email"
+
+# Required: Terraform state bucket name (created by bootstrap script)
+# Format: tf-state-{PROJECT_ID}
+state_bucket = "state_bucket_name"
+
+# Optional: GCP region (default: us-central1)
+region = "us-central1"
+
+# Optional: VPC name (default: prod-vpc)
+# vpc_name = "prod-vpc"
+
+# Optional: Custom subnet configuration
+# subnets = {
+#   subnet-a = { cidr = "10.0.1.0/24", region = "us-central1" }
+#   subnet-b = { cidr = "10.0.2.0/24", region = "us-central1" }
+# }
+
+# Custom Cloud Build service account email
+cloud_build_sa = "your_cloudbuild_sa_email"
+
+# Required: GitHub repository URL
+github_repo_url = "https://github.com/your_username/your_repo.git"
+
+# Required: GitHub App Installation ID
+github_app_installation_id = "your_github_app_installation_id"
+
+
+
