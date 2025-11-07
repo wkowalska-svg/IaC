@@ -18,6 +18,8 @@ gcloud config set project "$PROJECT_ID"
 echo "Enabling required APIs..."
 gcloud services enable \
   cloudbuild.googleapis.com \
+  developerconnect.googleapis.com \
+  cloudresourcemanager.googleapis.com \
   compute.googleapis.com \
   storage.googleapis.com \
   monitoring.googleapis.com \
@@ -47,7 +49,7 @@ else
     --display-name="Cloud Build Runner"
 fi
 
-# Grant the new SA necessary project roles
+# 4️⃣ Grant the new SA necessary project roles
 echo "Assigning IAM roles to Cloud Build SA: $CB_SA_EMAIL"
 
 CB_ROLES=(
@@ -58,6 +60,8 @@ CB_ROLES=(
   "roles/monitoring.editor"
   "roles/serviceusage.serviceUsageAdmin"
   "roles/logging.logWriter"
+  "roles/secretmanager.secretAccessor"
+  "roles/cloudbuild.serviceAgent"
 )
 
 for ROLE in "${CB_ROLES[@]}"; do
@@ -68,10 +72,42 @@ for ROLE in "${CB_ROLES[@]}"; do
     --quiet
 done
 
+# 5️⃣ Create GitHub OAuth secret
+echo "Creating GitHub OAuth token secret..."
+echo ""
+echo "You need a GitHub Personal Access Token with 'repo' and 'admin:repo_hook' scopes."
+echo "Create one at: https://github.com/settings/tokens"
+echo ""
+read -sp "Enter GitHub OAuth token (input hidden): " GITHUB_TOKEN
+echo ""
+
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "⚠️  No token provided. You can create/update the secret later with:"
+  echo "   echo -n 'YOUR_TOKEN' | gcloud secrets versions add github-oauth-token --data-file=- --project=$PROJECT_ID"
+else
+  if gcloud secrets describe github-oauth-token --project="$PROJECT_ID" >/dev/null 2>&1; then
+    echo "Secret 'github-oauth-token' already exists, adding new version..."
+    echo -n "$GITHUB_TOKEN" | gcloud secrets versions add github-oauth-token \
+      --data-file=- \
+      --project="$PROJECT_ID"
+  else
+    echo "Creating secret 'github-oauth-token'..."
+    echo -n "$GITHUB_TOKEN" | gcloud secrets create github-oauth-token \
+      --data-file=- \
+      --replication-policy=automatic \
+      --project="$PROJECT_ID"
+  fi
+  
+  echo "✅ GitHub OAuth secret created"
+fi
+
 # Grant Cloud Build SA storage.admin on the state bucket explicitly
 echo "Granting bucket-level roles/storage.admin to Cloud Build SA on $STATE_BUCKET"
 gsutil iam ch serviceAccount:$CB_SA_EMAIL:roles/storage.admin gs://$STATE_BUCKET
 
-echo "Bootstrap complete."
+echo ""
+echo "=========================================="
+echo "Bootstrap complete!"
+echo "=========================================="
 echo "Terraform state bucket: $STATE_BUCKET"
 echo "Cloud Build service account: $CB_SA_EMAIL"

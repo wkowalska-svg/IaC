@@ -2,14 +2,14 @@ resource "google_compute_instance" "vm" {
   name         = var.name
   machine_type = var.machine_type
   zone         = "${var.region}-a"
-  boot_disk { 
-    initialize_params { 
-      image = var.image 
-    } 
+  boot_disk {
+    initialize_params {
+      image = var.image
+    }
   }
-  network_interface { 
-    subnetwork = var.subnet 
-    access_config {} 
+  network_interface {
+    subnetwork = var.subnet
+    access_config {}
   }
   metadata = {
     enable-oslogin = "TRUE"
@@ -19,7 +19,7 @@ resource "google_compute_instance" "vm" {
     apt-get update
     apt-get install -y nginx
   EOT
-  tags = ["http-server"]
+  tags                    = ["http-server"]
 }
 resource "google_compute_instance" "vm2" {
   name         = "${var.name}-2"
@@ -39,7 +39,7 @@ resource "google_compute_instance" "vm2" {
     apt-get update
     apt-get install -y nginx
   EOT
-  tags = ["http-server"]
+  tags                    = ["http-server"]
 }
 
 /*

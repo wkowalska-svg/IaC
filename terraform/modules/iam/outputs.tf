@@ -1,1 +1,3 @@
-output "cloud_build_sa" { value = var.cloud_build_sa }
+output "cloud_build_sa" {
+  value = local.cloud_build_sa
+}
