@@ -36,7 +36,7 @@ resource "google_cloudbuild_trigger" "pr_plan" {
     repository = google_cloudbuildv2_repository.github-repository.id
 
     pull_request {
-      branch = "^main$"
+      branch = "^(main|master)$"
     }
   }
 
@@ -63,7 +63,7 @@ resource "google_cloudbuild_trigger" "main_apply" {
     repository = google_cloudbuildv2_repository.github-repository.id
 
     push {
-      branch = "^main$"
+      branch = "^(main|master)$"
     }
   }
 
