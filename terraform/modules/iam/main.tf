@@ -5,14 +5,8 @@ data "google_project" "current" {
 
 # Local variable for Cloud Build SA email
 locals {
-  cloud_build_sa = "${data.google_project.current.number}@cloudbuild.gserviceaccount.com"
-}
-
-resource "google_project_service" "cloud_build_api" {
-  project = var.project_id
-  service = "cloudbuild.googleapis.com"
-
-  disable_on_destroy = false
+  cloud_build_sa    = var.cloud_build_sa != "" ? var.cloud_build_sa : "${data.google_project.current.number}@cloudbuild.gserviceaccount.com"
+  cloud_build_agent = "service-${data.google_project.current.number}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "vm_user_ssh" {
@@ -24,7 +18,7 @@ resource "google_project_iam_member" "vm_user_ssh" {
 # Assign IAM role to Cloud Build SA
 resource "google_project_iam_member" "cloud_build_compute" {
   project = var.project_id
-  role    = "roles/compute.admin"
+  role    = "roles/compute.instanceAdmin.v1"
   member  = "serviceAccount:${local.cloud_build_sa}"
 }
 
@@ -42,18 +36,33 @@ resource "google_project_iam_member" "cloud_build_iam" {
 
 resource "google_project_iam_member" "cloud_build_storage" {
   project = var.project_id
-  role    = "roles/storage.admin"
+  role    = "roles/storage.objectAdmin"
   member  = "serviceAccount:${local.cloud_build_sa}"
 }
 
-resource "google_project_iam_member" "cloud_build_monitoring" {
+resource "google_project_iam_member" "cloudbuild_agent_service_agent" {
   project = var.project_id
-  role    = "roles/monitoring.editor"
+  role    = "roles/cloudbuild.serviceAgent"
+  member  = "serviceAccount:${local.cloud_build_agent}"
+}
+
+
+resource "google_project_iam_member" "cloudbuild_agent_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${local.cloud_build_agent}"
+}
+
+
+resource "google_project_iam_member" "cloudbuild_sa_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${local.cloud_build_sa}"
 }
 
-resource "google_project_iam_member" "cloud_build_serviceusage" {
+
+resource "google_project_iam_member" "cloudbuild_logs" {
   project = var.project_id
-  role    = "roles/serviceusage.serviceUsageAdmin"
+  role    = "roles/logging.logWriter"
   member  = "serviceAccount:${local.cloud_build_sa}"
 }
