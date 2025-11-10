@@ -10,6 +10,9 @@ Before running the bootstrap script, you need a GitHub Personal Access Token wit
 
 - `repo` - Full control of private repositories
 - `admin:repo_hook` - Full control of repository hooks
+- `admin:public_key` - Full control of user public keys
+- `user` - Read user profile information
+- `workflow` - Update GitHub Action workflows
 
 **Create a token at:** https://github.com/settings/tokens
 
