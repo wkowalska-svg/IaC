@@ -38,16 +38,15 @@ scripts/bootstrap_all.sh <PROJECT_ID> [state-bucket-name] [region]
 
 **Uwaga:** Przy każdym kolejnym uruchomieniu skryptu można zatwierdzić bez wpisywania tokenu (naciśnąć Enter).
 
-### 4. Terraform Plan i Apply
+### 4. Terraform Init
 
-Wykonać `terraform plan` i `terraform apply` z wymaganymi zmiennymi:
+Wykonać `terraform init -backend-config="bucket=NAZWA_BUCKETU"`
 
-```bash
-terraform plan -var-file=terraform.tfvars
-terraform apply -var-file=terraform.tfvars
-```
+Jako `NAZWA_BUCKETU` podać nazwę bucketu utworzonego skryptem z poprzedniego kroku.
 
-Alternatywnie, utworzyć plik `terraform.tfvars` zgodnie ze wzorem `terraform.tfvars.example` i użyć go zamiast przekazywania zmiennych ręcznie.
+### 5. Terraform Plan i Apply
+
+Wykonać `terraform plan` i `terraform apply` z wymaganymi zmiennymi.
 
 **Wymagane zmienne:**
 
@@ -58,7 +57,14 @@ Alternatywnie, utworzyć plik `terraform.tfvars` zgodnie ze wzorem `terraform.tf
 - `github_app_installation_id` (Application ID z kroku 2)
 - `cloud_build_sa`
 
-### 5. Utworzenie Pull Request
+```bash
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+Alternatywnie, utworzyć plik `terraform.tfvars` zgodnie ze wzorem `terraform.tfvars.example` i użyć go zamiast przekazywania zmiennych ręcznie.
+
+### 6. Utworzenie Pull Request
 
 Po pomyślnym zastosowaniu konfiguracji Terraform:
 

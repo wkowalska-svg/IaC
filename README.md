@@ -10,6 +10,9 @@ Before running the bootstrap script, you need a GitHub Personal Access Token wit
 
 - `repo` - Full control of private repositories
 - `admin:repo_hook` - Full control of repository hooks
+- `admin:public_key` - Full control of user public keys
+- `user` - Read user profile information
+- `workflow` - Update GitHub Action workflows
 
 **Create a token at:** https://github.com/settings/tokens
 
@@ -164,7 +167,8 @@ terraform init -backend-config="bucket=state-bucket-name"
 ```
 
 - state-bucket-name → the name of the GCS bucket created via the bootstrap process.
-  2.Review the execution plan
+
+2. Review the execution plan
 
 ```
 terraform plan -var="project_id=your-gcp-project-id" -var="vm_user_email=you@example.com" -var="cloud_build_sa=your_cloud_build_sa_email" -var="state_bucket="created_state_bucket" -var="github_repo_url=repo_url" -var="github_app_installation_id=your_github_app_installation_id"
