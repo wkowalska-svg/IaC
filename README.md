@@ -46,6 +46,7 @@ scripts/bootstrap_all.sh <PROJECT_ID> [state-bucket-name] [region]
 - Creates a Terraform state bucket (default: tf-state-<PROJECT_ID>).
 - Enables required GCP APIs.
 - Grants necessary IAM roles to the Cloud Build service account.
+- Grants necessary IAM roles to the Cloud Build service agent.
 - Must be run in a GCP environment (e.g., Cloud Shell) before using the pipeline.
 - Prompts for GitHub OAuth token and stores it in Secret Manager. (Input will be hidden for security)
 
