@@ -1,4 +1,35 @@
 steps:
+  # Step 0: Store current commit and retrieve last successful deployment
+  - name: "gcr.io/cloud-builders/git"
+    id: "prepare-rollback-info"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        echo "********************************"
+        echo "* Preparing rollback info...    *"
+        echo "********************************"
+
+        # Store current commit SHA for this deployment attempt
+        CURRENT_SHA=$(git rev-parse HEAD)
+        echo "${CURRENT_SHA}" > /workspace/current_commit.txt
+        echo "Current commit: ${CURRENT_SHA}"
+
+        # Try to fetch last successful deployment SHA from GCS
+        gsutil cp gs://${_STATE_BUCKET}/deployments/last_successful_commit.txt /workspace/last_successful_commit.txt 2>/dev/null || {
+          echo "⚠️  No previous successful deployment found"
+          echo "This appears to be the first deployment"
+          echo "NONE" > /workspace/last_successful_commit.txt
+        }
+
+        LAST_SUCCESSFUL_SHA=$(cat /workspace/last_successful_commit.txt)
+        echo "Last successful deployment: ${LAST_SUCCESSFUL_SHA}"
+
+        # Mark that we haven't applied yet
+        echo "APPLY_STATUS=not_started" > /workspace/apply_status.txt
+
+        echo "✅ Rollback info prepared"
+
   # Step 1: Terraform Init
   - name: "hashicorp/terraform:${_TF_VERSION}"
     id: "init"
@@ -62,38 +93,194 @@ steps:
         # Enable pipefail to catch errors in piped commands
         set -o pipefail
 
+        # Mark that apply is starting
+        echo "APPLY_STATUS=in_progress" > /workspace/apply_status.txt
+
         terraform apply -auto-approve -no-color tfplan 2>&1 | tee /workspace/apply_output.txt || {
           echo ""
           echo "❌ Terraform apply failed!"
           echo "Please review the errors above. Infrastructure may be in a partial state."
+          echo "APPLY_STATUS=failed" > /workspace/apply_status.txt
           exit 1
         }
 
         echo ""
         echo "✅ Deployment completed successfully!"
+        echo "APPLY_STATUS=success" > /workspace/apply_status.txt
 
-  # Step 4: Terraform Output
-  - name: "hashicorp/terraform:${_TF_VERSION}"
-    id: "output"
+  # Step 4: Rollback on Failure (conditional)
+  - name: "gcr.io/cloud-builders/git"
+    id: "rollback"
+    waitFor: ["apply"]
     entrypoint: "sh"
     args:
       - "-c"
       - |
         echo "********************************"
-        echo "* Infrastructure Outputs        *"
+        echo "* Checking apply status...      *"
         echo "********************************"
-        cd terraform
-        terraform output -no-color || {
-          echo "❌ Failed to retrieve Terraform outputs!"
-          echo "The deployment may have succeeded but outputs could not be displayed."
-          exit 1
-        }
-        echo ""
-        echo "✅ Outputs retrieved successfully"
 
-  # Step 5: Save State Info
+        # Check if apply failed
+        APPLY_STATUS=$(cat /workspace/apply_status.txt)
+
+        if echo "${APPLY_STATUS}" | grep -q "APPLY_STATUS=failed"; then
+          echo ""
+          echo "🔄 Apply failed - Initiating infrastructure rollback..."
+          echo "********************************"
+          
+          LAST_SUCCESSFUL_SHA=$(cat /workspace/last_successful_commit.txt)
+          
+          if [ "${LAST_SUCCESSFUL_SHA}" = "NONE" ]; then
+            echo "❌ No previous successful deployment to rollback to!"
+            echo "This was the first deployment attempt."
+            echo "Manual cleanup of partial resources may be required."
+            echo "ROLLBACK_STATUS=no_previous_version" > /workspace/rollback_status.txt
+            exit 1
+          fi
+          
+          echo "Rolling back to commit: ${LAST_SUCCESSFUL_SHA}"
+          
+          # Checkout previous successful commit
+          git checkout ${LAST_SUCCESSFUL_SHA} || {
+            echo "❌ Failed to checkout previous commit!"
+            echo "ROLLBACK_STATUS=git_checkout_failed" > /workspace/rollback_status.txt
+            exit 1
+          }
+          
+          echo "✅ Checked out previous successful commit"
+          echo "ROLLBACK_STATUS=initiated" > /workspace/rollback_status.txt
+        else
+          echo "✅ Apply succeeded - no rollback needed"
+          echo "ROLLBACK_STATUS=not_needed" > /workspace/rollback_status.txt
+          exit 0
+        fi
+
+  # Step 5: Re-initialize and Apply Previous Version (rollback execution)
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "rollback-apply"
+    waitFor: ["rollback"]
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        ROLLBACK_STATUS=$(cat /workspace/rollback_status.txt)
+
+        if echo "${ROLLBACK_STATUS}" | grep -q "ROLLBACK_STATUS=initiated"; then
+          echo "********************************"
+          echo "* Executing infrastructure rollback *"
+          echo "********************************"
+          
+          cd terraform
+          
+          # Re-initialize terraform with previous code
+          echo "Re-initializing Terraform..."
+          terraform init -backend-config="bucket=${_STATE_BUCKET}" -no-color -reconfigure || {
+            echo "❌ Failed to re-initialize Terraform!"
+            echo "ROLLBACK_STATUS=init_failed" > /workspace/rollback_status.txt
+            exit 1
+          }
+          
+          # Plan the rollback
+          echo ""
+          echo "Planning rollback changes..."
+          terraform plan \
+            -var="project_id=${PROJECT_ID}" \
+            -var="vm_user_email=${_VM_USER_EMAIL}" \
+            -var="github_repo_url=${_GITHUB_REPO_URL}" \
+            -var="github_app_installation_id=${_GITHUB_APP_INSTALLATION_ID}" \
+            -var="state_bucket=${_STATE_BUCKET}" \
+            -var="cloud_build_sa=${_CLOUD_BUILD_SA}" \
+            -out=rollback.tfplan \
+            -no-color 2>&1 | tee /workspace/rollback_plan.txt || {
+            echo "❌ Rollback plan failed!"
+            echo "ROLLBACK_STATUS=plan_failed" > /workspace/rollback_status.txt
+            exit 1
+          }
+          
+          # Apply the rollback
+          echo ""
+          echo "Applying rollback..."
+          terraform apply -auto-approve -no-color rollback.tfplan 2>&1 | tee /workspace/rollback_apply.txt || {
+            echo "❌ Rollback apply failed!"
+            echo "CRITICAL: Infrastructure is in an inconsistent state."
+            echo "Manual intervention required."
+            echo "ROLLBACK_STATUS=apply_failed" > /workspace/rollback_status.txt
+            exit 1
+          }
+          
+          echo ""
+          echo "✅ Infrastructure rolled back successfully!"
+          LAST_SUCCESSFUL_SHA=$(cat /workspace/last_successful_commit.txt)
+          echo "Infrastructure restored to commit: ${LAST_SUCCESSFUL_SHA}"
+          echo "ROLLBACK_STATUS=success" > /workspace/rollback_status.txt
+          
+          # The overall build should still fail to indicate the original deployment failed
+          exit 1
+        else
+          echo "Rollback not needed, skipping..."
+          exit 0
+        fi
+
+  # Step 6: Terraform Output (only if apply succeeded)
+  - name: "hashicorp/terraform:${_TF_VERSION}"
+    id: "output"
+    waitFor: ["rollback"]
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        APPLY_STATUS=$(cat /workspace/apply_status.txt)
+
+        if echo "${APPLY_STATUS}" | grep -q "APPLY_STATUS=success"; then
+          echo "********************************"
+          echo "* Infrastructure Outputs        *"
+          echo "********************************"
+          cd terraform
+          terraform output -no-color || {
+            echo "❌ Failed to retrieve Terraform outputs!"
+            echo "The deployment may have succeeded but outputs could not be displayed."
+            exit 1
+          }
+          echo ""
+          echo "✅ Outputs retrieved successfully"
+        else
+          echo "Skipping outputs - deployment failed"
+          exit 1
+        fi
+
+  # Step 7: Save Successful Deployment Info
+  - name: "gcr.io/cloud-builders/gsutil"
+    id: "save-success"
+    waitFor: ["output"]
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        APPLY_STATUS=$(cat /workspace/apply_status.txt)
+
+        if echo "${APPLY_STATUS}" | grep -q "APPLY_STATUS=success"; then
+          echo "********************************"
+          echo "* Saving successful deployment  *"
+          echo "********************************"
+          
+          CURRENT_SHA=$(cat /workspace/current_commit.txt)
+          
+          # Store this as the last successful deployment
+          echo "${CURRENT_SHA}" > /workspace/last_successful_commit.txt
+          gsutil cp /workspace/last_successful_commit.txt gs://${_STATE_BUCKET}/deployments/last_successful_commit.txt || {
+            echo "⚠️  Warning: Failed to save successful commit SHA"
+          }
+          
+          echo "✅ Deployment SHA saved for future rollbacks"
+        else
+          echo "Deployment failed - not updating last successful SHA"
+          exit 1
+        fi
+
+  # Step 8: Save Build Artifacts
   - name: "gcr.io/cloud-builders/gsutil"
     id: "backup"
+    waitFor: ["rollback-apply"]
     entrypoint: "sh"
     args:
       - "-c"
@@ -101,16 +288,37 @@ steps:
         echo "********************************"
         echo "* Backing up build artifacts... *"
         echo "********************************"
-        echo "${SHORT_SHA}-${BUILD_ID}" > /workspace/deployment_info.txt
 
-        gsutil cp /workspace/apply_output.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-apply-${SHORT_SHA}.log || {
-          echo "❌ Failed to backup apply output!"
-          exit 1
-        }
+        APPLY_STATUS=$(cat /workspace/apply_status.txt)
+        ROLLBACK_STATUS=$(cat /workspace/rollback_status.txt)
 
-        gsutil cp /workspace/deployment_info.txt gs://${_STATE_BUCKET}/deployments/latest.txt || {
-          echo "❌ Failed to backup deployment info!"
-          exit 1
+        echo "Build ID: ${BUILD_ID}" > /workspace/deployment_info.txt
+        echo "Commit SHA: ${SHORT_SHA}" >> /workspace/deployment_info.txt
+        echo "${APPLY_STATUS}" >> /workspace/deployment_info.txt
+        echo "${ROLLBACK_STATUS}" >> /workspace/deployment_info.txt
+
+        # Save apply output
+        if [ -f /workspace/apply_output.txt ]; then
+          gsutil cp /workspace/apply_output.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-apply-${SHORT_SHA}.log || {
+            echo "⚠️  Warning: Failed to backup apply output"
+          }
+        fi
+
+        # Save rollback outputs if they exist
+        if [ -f /workspace/rollback_plan.txt ]; then
+          gsutil cp /workspace/rollback_plan.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-rollback-plan-${SHORT_SHA}.log || {
+            echo "⚠️  Warning: Failed to backup rollback plan"
+          }
+        fi
+
+        if [ -f /workspace/rollback_apply.txt ]; then
+          gsutil cp /workspace/rollback_apply.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-rollback-apply-${SHORT_SHA}.log || {
+            echo "⚠️  Warning: Failed to backup rollback apply output"
+          }
+        fi
+
+        gsutil cp /workspace/deployment_info.txt gs://${_STATE_BUCKET}/deployments/${BUILD_ID}-info.txt || {
+          echo "⚠️  Warning: Failed to backup deployment info"
         }
 
         echo "✅ Build artifacts saved successfully"
@@ -122,8 +330,13 @@ artifacts:
     paths:
       - "apply_output.txt"
       - "deployment_info.txt"
+      - "rollback_status.txt"
+      - "rollback_plan.txt"
+      - "rollback_apply.txt"
+      - "current_commit.txt"
+      - "last_successful_commit.txt"
 
-timeout: "1800s" # 30 minutes
+timeout: "3600s" # 60 minutes (increased to account for potential rollback)
 
 options:
   logging: CLOUD_LOGGING_ONLY
