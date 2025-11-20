@@ -43,8 +43,8 @@ resource "google_compute_instance" "vm2" {
 }
 
 
-resource "google_compute_instance" "vm4" {
-  name         = "${var.name}-4"
+resource "google_compute_instance" "vm3" {
+  name         = "${var.name}-3"
   machine_type = var.machine_type
   zone         = "${var.region}-a"
   boot_disk {
@@ -65,19 +65,19 @@ resource "google_compute_instance" "vm4" {
 }
 
 
-
+/*
 resource "google_compute_instance" "invalid" {
   name         = "fail-test"
-  machine_type = "INVALID_TYPE" # <-- This will fail
+  machine_type = "INVALID_TYPE"  # <-- This will fail
   zone         = "us-central1-a"
-  boot_disk {
-    initialize_params {
-      image = var.image
-    }
+  boot_disk { 
+    initialize_params { 
+      image = var.image 
+    } 
   }
-  network_interface {
-    subnetwork = var.subnet
-    access_config {}
+  network_interface { 
+    subnetwork = var.subnet 
+    access_config {} 
   }
 }
-
+*/
