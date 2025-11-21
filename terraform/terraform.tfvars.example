@@ -33,5 +33,8 @@ github_repo_url = "https://github.com/your_username/your_repo.git"
 # Required: GitHub App Installation ID
 github_app_installation_id = "your_github_app_installation_id"
 
+# Email address for Cloud Monitoring alerts
+alert_email = "your_email@company.com"
+
 
 

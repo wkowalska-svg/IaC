@@ -75,6 +75,7 @@ steps:
           -var="github_app_installation_id=${_GITHUB_APP_INSTALLATION_ID}" \
           -var="state_bucket=${_STATE_BUCKET}" \
           -var="cloud_build_sa=${_CLOUD_BUILD_SA}" \
+          -var="alert_email=${_ALERT_EMAIL}" \
           -out=tfplan \
           -no-color 2>&1 | tee /workspace/plan_output.txt || {
           echo ""
@@ -126,3 +127,5 @@ substitutions:
   _GITHUB_REPO_URL: "MUST_BE_PROVIDED"
   _GITHUB_APP_INSTALLATION_ID: "MUST_BE_PROVIDED"
   _CLOUD_BUILD_SA: "MUST_BE_PROVIDED"
+  _ALERT_EMAIL: "MUST_BE_PROVIDED"
+  
