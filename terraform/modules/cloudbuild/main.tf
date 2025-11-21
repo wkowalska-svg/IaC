@@ -48,6 +48,7 @@ resource "google_cloudbuild_trigger" "pr_plan" {
     _GITHUB_REPO_URL            = var.github_repo_url
     _GITHUB_APP_INSTALLATION_ID = var.github_app_installation_id
     _CLOUD_BUILD_SA             = local.service_account_email
+    _ALERT_EMAIL                = var.alert_email
   }
 
   service_account = "projects/${var.project_id}/serviceAccounts/${local.service_account_email}"
@@ -75,6 +76,7 @@ resource "google_cloudbuild_trigger" "main_apply" {
     _GITHUB_REPO_URL            = var.github_repo_url
     _GITHUB_APP_INSTALLATION_ID = var.github_app_installation_id
     _CLOUD_BUILD_SA             = local.service_account_email
+    _ALERT_EMAIL                = var.alert_email
   }
 
   service_account = "projects/${var.project_id}/serviceAccounts/${local.service_account_email}"
