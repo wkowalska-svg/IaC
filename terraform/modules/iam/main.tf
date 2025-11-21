@@ -66,3 +66,9 @@ resource "google_project_iam_member" "cloudbuild_logs" {
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${local.cloud_build_sa}"
 }
+
+resource "google_project_iam_member" "cloudbuild_logging_config" {
+  project = var.project_id
+  role    = "roles/logging.configWriter"
+  member  = "serviceAccount:${local.cloud_build_sa}"
+}
