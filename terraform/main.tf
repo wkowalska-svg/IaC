@@ -32,6 +32,7 @@ module "cloudbuild" {
   vm_user_email              = var.vm_user_email
   github_repo_url            = var.github_repo_url
   github_app_installation_id = var.github_app_installation_id
+  alert_email                = var.alert_email
 
   depends_on = [module.iam]
 }

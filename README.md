@@ -225,3 +225,8 @@ Once the bootstrap and initial setup are complete, Cloud Build will automaticall
 **View builds:** https://console.cloud.google.com/cloud-build/builds
 **Artifacts location:** `gs://YOUR-STATE-BUCKET/builds/BUILD-ID/`
 **Deployment logs:** `gs://YOUR-STATE-BUCKET/deployments/`
+
+## Project Documentation
+Additional documentation is located in the `docs/` directory:
+- [Time & Cost Analysis](docs/time_and_costs.md)
+

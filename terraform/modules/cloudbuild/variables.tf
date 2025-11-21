@@ -34,3 +34,8 @@ variable "github_app_installation_id" {
   description = "GitHub App Installation ID"
   type        = string
 }
+
+variable "alert_email" {
+  type        = string
+  description = "Email used by Cloud Build in CI pipeline for monitoring alerts"
+}
