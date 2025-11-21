@@ -35,3 +35,10 @@ module "cloudbuild" {
 
   depends_on = [module.iam]
 }
+
+module "monitoring" {
+  source     = "./modules/monitoring"
+  project_id = var.project_id
+  alert_email = var.alert_email
+  region = var.region
+}
