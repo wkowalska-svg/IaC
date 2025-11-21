@@ -62,6 +62,7 @@ CB_ROLES=(
   "roles/logging.logWriter"
   "roles/secretmanager.secretAccessor"
   "roles/cloudbuild.serviceAgent"
+  "roles/cloudbuild.connectionAdmin"
 )
 
 for ROLE in "${CB_ROLES[@]}"; do
@@ -72,7 +73,27 @@ for ROLE in "${CB_ROLES[@]}"; do
     --quiet
 done
 
-# 5️⃣ Create GitHub OAuth secret
+# 5️⃣ Grant the Cloud Build Agent necessary project roles
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+CB_AGENT_SA_EMAIL="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+
+echo "Granting roles to Cloud Build Agent: $CB_AGENT_SA_EMAIL"
+
+CB_AGENT_ROLES=(  
+  "roles/cloudbuild.serviceAgent"
+  "roles/secretmanager.secretAccessor"
+  "roles/cloudbuild.connectionAdmin"
+)
+
+for ROLE in "${CB_AGENT_ROLES[@]}"; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$CB_AGENT_SA_EMAIL" \
+    --role="$ROLE" \
+    --condition=None \
+    --quiet
+done
+
+# 6️⃣ Create GitHub OAuth secret
 echo "Creating GitHub OAuth token secret..."
 echo ""
 echo "You need a GitHub Personal Access Token with 'repo' and 'admin:repo_hook' scopes."

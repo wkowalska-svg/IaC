@@ -1,12 +1,12 @@
-# Wdrażanie zmian Cloud Build
+# Deploying Cloud Build Changes
 
-Krótki przewodnik dotyczący kroków wymaganych przed zastosowaniem konfiguracji Terraform dla Cloud Build.
+A brief guide on the steps required before applying Terraform configuration for Cloud Build.
 
-## Wymagane kroki przed zastosowaniem Terraform
+## Required Steps Before Applying Terraform
 
-### 1. Utworzenie GitHub Token
+### 1. Creating GitHub Token
 
-Utworzyć GitHub Personal Access Token z następującymi uprawnieniami:
+Create a GitHub Personal Access Token with the following permissions:
 
 - `admin:public_key`
 - `admin:repo_hook`
@@ -14,47 +14,47 @@ Utworzyć GitHub Personal Access Token z następującymi uprawnieniami:
 - `user`
 - `workflow`
 
-**Utworzenie tokenu:** https://github.com/settings/tokens
+**Token creation:** https://github.com/settings/tokens
 
-⚠️ **Zapisać wartość tokenu** - będzie potrzebna w kolejnym kroku.
+⚠️ **Save the token value** - it will be needed in the next step.
 
-### 2. Konfiguracja Google Cloud Build w GitHub Apps
+### 2. Configuring Google Cloud Build in GitHub Apps
 
-1. Przejść do strony instalacji **Google Cloud Build GitHub App**: https://github.com/apps/google-cloud-build
-2. Kliknąć **"Configure"** lub **"Install"**
-3. Wybrać konto/organizację GitHub
-4. Wybrać repozytorium do połączenia
-5. Po instalacji, **zapisać Application ID** z URL:
-   - Format URL: `https://github.com/settings/installations/XXXXXXXX`
-   - Liczba na końcu to **Application ID** (Installation ID)
+1. Go to the **Google Cloud Build GitHub App** installation page: https://github.com/apps/google-cloud-build
+2. Click **"Configure"** or **"Install"**
+3. Select GitHub account/organization
+4. Select repository to connect
+5. After installation, **save the Application ID** from the URL:
+   - URL format: `https://github.com/settings/installations/XXXXXXXX`
+   - The number at the end is the **Application ID** (Installation ID)
 
-### 3. Uruchomienie skryptu bootstrap
+### 3. Running the Bootstrap Script
 
-Uruchomić skrypt bootstrap i przekazać GitHub token, gdy zostanie o niego zapytany:
+Run the bootstrap script and provide the GitHub token when prompted:
 
 ```bash
 scripts/bootstrap_all.sh <PROJECT_ID> [state-bucket-name] [region]
 ```
 
-**Uwaga:** Przy każdym kolejnym uruchomieniu skryptu można zatwierdzić bez wpisywania tokenu (naciśnąć Enter).
+**Note:** On each subsequent run of the script, you can confirm without entering the token (press Enter).
 
 ### 4. Terraform Init
 
-Wykonać `terraform init -backend-config="bucket=NAZWA_BUCKETU"`
+Execute `terraform init -backend-config="bucket=BUCKET_NAME"`
 
-Jako `NAZWA_BUCKETU` podać nazwę bucketu utworzonego skryptem z poprzedniego kroku.
+For `BUCKET_NAME`, provide the name of the bucket created by the script from the previous step.
 
-### 5. Terraform Plan i Apply
+### 5. Terraform Plan and Apply
 
-Wykonać `terraform plan` i `terraform apply` z wymaganymi zmiennymi.
+Execute `terraform plan` and `terraform apply` with the required variables.
 
-**Wymagane zmienne:**
+**Required variables:**
 
 - `project_id`
 - `vm_user_email`
 - `github_repo_url`
 - `state_bucket`
-- `github_app_installation_id` (Application ID z kroku 2)
+- `github_app_installation_id` (Application ID from step 2)
 - `cloud_build_sa`
 
 ```bash
@@ -62,14 +62,14 @@ terraform plan -var-file=terraform.tfvars
 terraform apply -var-file=terraform.tfvars
 ```
 
-Alternatywnie, utworzyć plik `terraform.tfvars` zgodnie ze wzorem `terraform.tfvars.example` i użyć go zamiast przekazywania zmiennych ręcznie.
+Alternatively, create a `terraform.tfvars` file according to the `terraform.tfvars.example` template and use it instead of passing variables manually.
 
-### 6. Utworzenie Pull Request
+### 6. Creating a Pull Request
 
-Po pomyślnym zastosowaniu konfiguracji Terraform:
+After successfully applying the Terraform configuration:
 
-1. Dodać jakiekolwiek zmiany do repozytorium
-2. Utworzyć Pull Request do gałęzi `main` lub `master`
-3. Cloud Build automatycznie uruchomi `terraform plan` dla PR
+1. Add any changes to the repository
+2. Create a Pull Request to the `main` or `master` branch
+3. Cloud Build will automatically run `terraform plan` for the PR
 
-Po scaleniu PR, Cloud Build automatycznie wykona `terraform apply`.
+After merging the PR, Cloud Build will automatically execute `terraform apply`.
