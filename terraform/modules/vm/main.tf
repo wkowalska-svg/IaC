@@ -42,7 +42,6 @@ resource "google_compute_instance" "vm2" {
   tags                    = ["http-server"]
 }
 
-
 /*
 resource "google_compute_instance" "invalid" {
   name         = "fail-test"
