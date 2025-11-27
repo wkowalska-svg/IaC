@@ -42,7 +42,7 @@ resource "google_compute_instance" "vm2" {
   tags                    = ["http-server"]
 }
 
-resource "google_compute_instance" "vm3" {
+/*resource "google_compute_instance" "vm3" {
   name         = "${var.name}-3"
   machine_type = var.machine_type
   zone         = "${var.region}-a"
@@ -62,7 +62,7 @@ resource "google_compute_instance" "vm3" {
   EOT
   tags                    = ["http-server"]
 }
-
+*/
 /*
 resource "google_compute_instance" "invalid" {
   name         = "fail-test"
